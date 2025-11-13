@@ -114,9 +114,3 @@ Este proyecto está pensado tanto para práctica como para futura expansión a u
 ## 📄 Licencia
 
 MIT License.
-
----
-
-Si quieres, **te lo puedo adaptar con tu nombre**, agregar capturas, o incluso generarte una **versión bilingüe (EN/ES)**.
-
-¿Quieres que agregue también un **diagrama del flujo de datos** o un **roadmap técnico más detallado**?
