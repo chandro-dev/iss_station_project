@@ -1,70 +1,122 @@
-# Getting Started with Create React App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# 🛰️ ISS Tracker – React App
 
-## Available Scripts
+Monitoreo en tiempo real de la Estación Espacial Internacional
 
-In the project directory, you can run:
+Este proyecto es una aplicación web creada con **Create React App** que permite visualizar en tiempo real la **posición actual de la Estación Espacial Internacional (ISS)** utilizando datos de la API pública de Where The ISS At.
+
+La app actualiza los datos automáticamente cada pocos segundos y muestra información básica como:
+
+* Latitud
+* Longitud
+* Altitud (km)
+* Velocidad (km/h)
+* Hora de actualización
+
+El objetivo es servir como base para futuros desarrollos más avanzados, como predicción de trayectorias, visualización en mapas 2D/3D, gráficas históricas o integración con AWS.
+
+---
+
+## 🚀 Tecnologías utilizadas
+
+* **React.js**
+* **JavaScript moderno (ES2020+)**
+* **fetch API**
+* **API pública: WhereTheISS.at**
+  `https://api.wheretheiss.at/v1/satellites/25544`
+
+---
+
+## 📦 Scripts disponibles
+
+En el directorio del proyecto puedes ejecutar:
 
 ### `npm start`
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Inicia la app en modo desarrollo.
+Abrir: **[http://localhost:3000](http://localhost:3000)**
 
 ### `npm test`
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Ejecuta pruebas en modo interactivo.
 
 ### `npm run build`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Genera una versión optimizada de la app lista para producción en la carpeta `build/`.
 
 ### `npm run eject`
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+❗ **No recomendado a menos que sepas lo que haces.**
+Expone toda la configuración interna de CRA para personalización avanzada.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 📡 ¿Cómo funciona la App?
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Cada 5 segundos la aplicación ejecuta una petición GET hacia:
 
-## Learn More
+```
+https://api.wheretheiss.at/v1/satellites/25544
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Y actualiza la vista con la información de la ISS.
+Esto permite simular un monitoreo real sin necesidad de backend propio.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
 
-### Code Splitting
+## 📁 Estructura principal del proyecto
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+```
+src/
+ ├── App.js     -  # Lógica principal del tracker
+ ├── index.js       # Punto de entrada del proyecto
+ ├── styles.css     # Estilos opcionales
+ └── ...
+```
 
-### Analyzing the Bundle Size
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## 🔮 Próximas mejoras (Roadmap)
 
-### Making a Progressive Web App
+Este proyecto está diseñado para escalar.
+Ideas futuras:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+* 🌍 **Agregar un mapa interactivo** (Leaflet o Mapbox)
+* 🧭 **Mostrar la órbita futura** usando TLE + SGP4
+* 🕒 **Histórico de posiciones** en una base de datos
+* ☁️ **Migrar a AWS** con:
 
-### Advanced Configuration
+  * API Gateway
+  * Lambda
+  * DynamoDB
+  * Amplify Hosting
+* 🛰 **Visualización 3D de la ISS** con Three.js
+* 🔔 **Notificaciones cuando pase cerca de tu ubicación**
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+---
 
-### Deployment
+## 📖 Aprendizaje recomendado
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+* React Hooks (useState, useEffect)
+* Consumo de APIs con fetch
+* Geolocalización y mapas web
+* Conceptos básicos de órbita satelital (TLE, SGP4)
 
-### `npm run build` fails to minify
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 🤝 Contribución
+
+Pull requests y sugerencias son bienvenidas.
+Este proyecto está pensado tanto para práctica como para futura expansión a un sistema más complejo de monitoreo satelital.
+
+---
+
+## 📄 Licencia
+
+MIT License.
+
+---
+
+Si quieres, **te lo puedo adaptar con tu nombre**, agregar capturas, o incluso generarte una **versión bilingüe (EN/ES)**.
+
+¿Quieres que agregue también un **diagrama del flujo de datos** o un **roadmap técnico más detallado**?

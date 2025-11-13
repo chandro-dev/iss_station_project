@@ -1,38 +1,135 @@
-.App {
-  text-align: center;
+.map-page {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  background: #020617;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #e2e8f0;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+.map-full {
+  width: 100%;
+  height: 100%;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+.panel-label {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04rem;
+  color: #94a3b8;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+.panel-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.panel-helper {
+  font-size: 0.8rem;
+  color: #cbd5f5;
+}
+
+.primary,
+.secondary {
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.primary {
+  background: linear-gradient(120deg, rgba(79, 70, 229, 0.9), rgba(6, 182, 212, 0.9));
   color: white;
 }
 
-.App-link {
-  color: #61dafb;
+.secondary {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  color: #f1f5f9;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+.hud {
+  position: absolute;
+  z-index: 500;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  backdrop-filter: blur(14px);
+  padding: 1rem;
+  border-radius: 1rem;
+}
+
+.hud--top-left {
+  top: 1.25rem;
+  left: 1.25rem;
+  max-width: 340px;
+}
+
+.hud--top-right {
+  top: 1.25rem;
+  right: 1.25rem;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 220px;
+}
+
+.hud--bottom {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 1.25rem;
+  width: min(calc(100% - 2.5rem), 900px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-items: flex-start;
+  row-gap: 0.75rem;
+}
+
+.eta-pill {
+  background: rgba(79, 70, 229, 0.2);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  text-align: center;
+  border: 1px solid rgba(79, 70, 229, 0.4);
+}
+
+.error-banner {
+  position: absolute;
+  left: 50%;
+  top: 1rem;
+  transform: translateX(-50%);
+  background: rgba(248, 113, 113, 0.2);
+  border: 1px solid rgba(248, 113, 113, 0.6);
+  color: #fecaca;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  z-index: 600;
+}
+
+.marker-label {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .hud {
+    position: static;
+    transform: none !important;
+    width: calc(100% - 2rem);
+    margin: 0 auto 1rem;
   }
-  to {
-    transform: rotate(360deg);
+
+  .map-page {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .map-full {
+    flex: 1;
+    min-height: 60vh;
   }
 }
