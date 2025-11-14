@@ -12,6 +12,100 @@
   height: 100%;
 }
 
+.globe-panel {
+  position: absolute;
+  top: 60%;
+  right: 1.25rem;
+  transform: translateY(-50%);
+  width: clamp(260px, 28vw, 380px);
+  height: clamp(260px, 28vw, 380px);
+  background: rgba(2, 6, 23, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 1.25rem;
+  box-shadow: 0 20px 45px rgba(2, 6, 23, 0.65);
+  overflow: hidden;
+  z-index: 450;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.globe-panel canvas {
+  flex: 2;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.globe-panel__label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0 0.85rem 0.6rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.3);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.globe-panel__status {
+  font-weight: 600;
+  letter-spacing: normal;
+  color: #f8fafc;
+}
+
+.globe-panel__legend {
+  display: flex;
+  gap: 0.35rem 0.8rem;
+  align-items: center;
+  font-size: 0.78rem;
+  padding: 0 0.85rem 0.95rem;
+  color: #cbd5f5;
+  flex-wrap: wrap;
+}
+
+.legend-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend-dot--iss {
+  background: #f97316;
+  box-shadow: 0 0 6px rgba(249, 115, 22, 0.8);
+}
+
+.legend-dot--sim {
+  background: #a855f7;
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.7);
+}
+
+.legend-dot--live {
+  background: #38bdf8;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.7);
+}
+
+.legend-dot--target {
+  background: #22d3ee;
+  box-shadow: 0 0 6px rgba(34, 211, 238, 0.8);
+}
+
+.globe-panel__badge {
+  background: rgba(14, 116, 144, 0.35);
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .panel-label {
   font-size: 0.85rem;
   text-transform: uppercase;
@@ -27,6 +121,62 @@
 .panel-helper {
   font-size: 0.8rem;
   color: #cbd5f5;
+}
+
+.sim-panel-inline {
+  width: 80%;
+  position: relative;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(2, 6, 23, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.75rem;
+  display:grid;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items:center;
+}
+
+.sim-panel__metrics {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.sim-progress {
+  width: 100%;
+  height: 4px;
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.sim-progress__bar {
+  height: 100%;
+  background: linear-gradient(120deg, #f97316, #a855f7);
+}
+
+.sim-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tertiary {
+  flex: 1;
+  padding: 0.45rem 0.5rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tertiary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .primary,
@@ -53,7 +203,7 @@
 .hud {
   position: absolute;
   z-index: 500;
-  display: flex;
+  display: grid;
   flex-wrap: wrap;
   gap: 1rem;
   background: rgba(2, 6, 23, 0.6);
@@ -73,8 +223,8 @@
   top: 1.25rem;
   right: 1.25rem;
   flex-direction: column;
-  align-items: flex-end;
-  max-width: 220px;
+  align-items: stretch;
+  width: min(220px, 20vw);
 }
 
 .hud--bottom {
@@ -82,7 +232,7 @@
   transform: translateX(-50%);
   bottom: 1.25rem;
   width: min(calc(100% - 2.5rem), 900px);
-  display: grid;
+  display: flex;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   align-items: flex-start;
   row-gap: 0.75rem;
@@ -113,7 +263,28 @@
   display: none;
 }
 
+@media (max-width: 1200px) {
+  .globe-panel {
+    top: auto;
+    bottom: 1.25rem;
+    transform: none;
+    right: 1.25rem;
+  }
+
+  .hud--top-right {
+    width: min(360px, calc(100% - 2.5rem));
+  }
+}
+
 @media (max-width: 768px) {
+  .globe-panel {
+    position: static;
+    transform: none;
+    width: calc(100% - 2rem);
+    height: 320px;
+    margin: 1rem auto;
+  }
+
   .hud {
     position: static;
     transform: none !important;
