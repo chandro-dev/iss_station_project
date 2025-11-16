@@ -1,5 +1,5 @@
 // Dependencias principales: React, Leaflet, utilidades matemáticas y estilos.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import dayjs from 'dayjs';
@@ -24,6 +24,8 @@ L.Icon.Default.mergeOptions({
 // Constantes de configuración general y parámetros del modelo.
 const ISS_API = 'https://api.wheretheiss.at/v1/satellites/25544';
 const ISS_REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000; // refrescamos telemetria cada 2 h
+const LIVE_UPDATE_INTERVAL_MS = 1000; // simulamos la posicion con el TLE cada segundo
+const HISTORY_SAMPLE_INTERVAL_MS = 10000; // guardamos solo un punto historico cada 10 s
 const ORBIT_MINUTES = 92;
 const ORBITAL_SPEED_KM_S = 7.66; // respaldo simple
 const INITIAL_VIEW = [0, 0];
@@ -103,6 +105,8 @@ function App() {
   const [isSimPlaying, setIsSimPlaying] = useState(false);
   const [simTimeMs, setSimTimeMs] = useState(null);
   const [simSpeedMultiplier, setSimSpeedMultiplier] = useState(1);
+  const [passThresholdKm, setPassThresholdKm] = useState(PASS_THRESHOLD_KM);
+  const lastHistoryUpdateRef = useRef(0);
 
   // Poll periodico a la API publica para obtener la telemetria de referencia (cada 2 h).
   // Descarga y refresca periodicamente los TLE disponibles.
@@ -128,7 +132,7 @@ function App() {
         setIssPosition(position);
         setIssHistory((prev) => {
           const next = [...prev, position];
-          return next.slice(-60);
+          return next.slice(-120);
         });
         setError(null);
       } catch (err) {
@@ -212,6 +216,16 @@ function App() {
 
   // Distancia actual entre la ISS y el objetivo.
   const distanceKm = useMemo(() => haversineDistanceKm(issPosition, targetPoint), [issPosition, targetPoint]);
+  const passThresholdMeters = useMemo(() => passThresholdKm * 1000, [passThresholdKm]);
+
+  // Evita saltos de 360° limitando la longitud.
+  const normalizeLng = useCallback((lng) => {
+    if (!Number.isFinite(lng)) return lng;
+    let normalized = lng % 360;
+    if (normalized > 180) normalized -= 360;
+    if (normalized < -180) normalized += 360;
+    return normalized;
+  }, []);
 
   // Calcula el punto sub-satelital en tierra para un instante dado.
   const computeGroundPoint = useCallback((timeMs) => {
@@ -227,14 +241,60 @@ function App() {
     };
   }, [satrec]);
 
-  // Evita saltos de 360° limitando la longitud.
-  const normalizeLng = useCallback((lng) => {
-    if (!Number.isFinite(lng)) return lng;
-    let normalized = lng % 360;
-    if (normalized > 180) normalized -= 360;
-    if (normalized < -180) normalized += 360;
-    return normalized;
-  }, []);
+  // Estado completo (posicion + velocidad) en un instante dado usando el TLE actual.
+  const computeIssState = useCallback(
+    (timeMs) => {
+      if (!satrec) return null;
+      const date = new Date(timeMs);
+      const positionAndVelocity = satellite.propagate(satrec, date);
+      if (!positionAndVelocity.position) return null;
+      const gmst = satellite.gstime(date);
+      const geodetic = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+      const lat = satellite.degreesLat(geodetic.latitude);
+      const lng = normalizeLng(satellite.degreesLong(geodetic.longitude));
+      let velocityKmh = null;
+      if (positionAndVelocity.velocity) {
+        const v = positionAndVelocity.velocity;
+        const kmPerSecond = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+        velocityKmh = kmPerSecond * 3600;
+      }
+      return {
+        lat,
+        lng,
+        timestamp: timeMs,
+        velocityKmh,
+      };
+    },
+    [satrec, normalizeLng]
+  );
+
+  // Genera una posición "en vivo" usando el TLE sin nuevas solicitudes.
+  useEffect(() => {
+    if (!satrec) return undefined;
+    let cancelled = false;
+
+    const updateFromTle = () => {
+      if (cancelled) return;
+      const now = Date.now();
+      const state = computeIssState(now);
+      if (!state) return;
+      setIssPosition(state);
+      if (now - lastHistoryUpdateRef.current >= HISTORY_SAMPLE_INTERVAL_MS) {
+        lastHistoryUpdateRef.current = now;
+        setIssHistory((prev) => {
+          const next = [...prev, state];
+          return next.slice(-120);
+        });
+      }
+    };
+
+    updateFromTle();
+    const interval = setInterval(updateFromTle, LIVE_UPDATE_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [satrec, computeIssState]);
 
   useEffect(() => {
     if (!satrec || !targetPoint) {
@@ -253,7 +313,7 @@ function App() {
       if (dist != null && dist < best.distance) {
         best = { distance: dist, time: t };
       }
-      if (dist != null && dist <= PASS_THRESHOLD_KM) {
+      if (dist != null && dist <= passThresholdKm) {
         setNextPassPrediction({ time: t, distance: dist, thresholdHit: true });
         return;
       }
@@ -264,7 +324,7 @@ function App() {
     } else {
       setNextPassPrediction(null);
     }
-  }, [satrec, targetPoint, computeGroundPoint, normalizeLng]);
+  }, [satrec, targetPoint, computeGroundPoint, normalizeLng, passThresholdKm]);
 
   // Construye la ruta simulada entre ahora y la próxima pasada.
   // Construye la ruta simulada entre ahora y la próxima pasada.
@@ -287,7 +347,7 @@ function App() {
       const ground = { lat: groundPoint.lat, lng: normalizeLng(groundPoint.lng) };
       const distance = haversineDistanceKm(ground, targetPoint);
       path.push({ ...ground, time: t, distance });
-      if (distance != null && distance <= PASS_THRESHOLD_KM) break;
+      if (distance != null && distance <= passThresholdKm) break;
     }
 
     if (path.length < 2) return null;
@@ -302,7 +362,7 @@ function App() {
     }
 
     return path;
-  }, [satrec, targetPoint, nextPassPrediction?.time, computeGroundPoint, normalizeLng]);
+  }, [satrec, targetPoint, nextPassPrediction?.time, computeGroundPoint, normalizeLng, passThresholdKm]);
 
   useEffect(() => {
     if (simulationPath?.length) {
@@ -383,19 +443,15 @@ function App() {
 
   // Estima la velocidad actual (modelo o telemetría).
   const speedInfo = useMemo(() => {
-    if (satrec) {
-      const positionAndVelocity = satellite.propagate(satrec, new Date());
-      if (positionAndVelocity.velocity) {
-        const v = positionAndVelocity.velocity;
-        const kmPerSecond = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-        return { kmh: kmPerSecond * 3600, kms: kmPerSecond };
-      }
-    }
     if (issPosition?.velocityKmh) {
       return { kmh: issPosition.velocityKmh, kms: issPosition.velocityKmh / 3600 };
     }
+    const fallback = computeIssState(Date.now());
+    if (fallback?.velocityKmh) {
+      return { kmh: fallback.velocityKmh, kms: fallback.velocityKmh / 3600 };
+    }
     return null;
-  }, [satrec, issPosition]);
+  }, [issPosition, computeIssState]);
 
   // Posición interpolada del marcador durante la simulación.
   const simulatedPosition = useMemo(() => {
@@ -527,7 +583,7 @@ function App() {
             <Marker position={[targetPoint.lat, targetPoint.lng]} icon={issIcon}>
               <span className="marker-label">Objetivo</span>
             </Marker>
-            <Circle center={[targetPoint.lat, targetPoint.lng]} radius={500000} pathOptions={{ color: '#fb923c', weight: 1 }} />
+            <Circle center={[targetPoint.lat, targetPoint.lng]} radius={passThresholdMeters} pathOptions={{ color: '#fb923c', weight: 1 }} />
           </>
         )}
         {issHistory.length > 1 && (
@@ -590,6 +646,18 @@ function App() {
         <button className="secondary" onClick={() => setTargetPoint(null)}>
           Limpiar objetivo
         </button>
+        <label className="panel-label" htmlFor="precision-slider">
+          Precisión objetivo ({passThresholdKm.toFixed(0)} km)
+        </label>
+        <input
+          id="precision-slider"
+          type="range"
+          min="25"
+          max="500"
+          step="5"
+          value={passThresholdKm}
+          onChange={(event) => setPassThresholdKm(Number(event.target.value))}
+        />
         <div className="panel-helper">También puedes hacer clic en el mapa para definir el punto.</div>
         {targetPoint && !simulationAvailable && (
           <div className="panel-helper">Calculando trayectoria orbital...</div>
