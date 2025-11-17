@@ -87,13 +87,7 @@ npm run build      # empaqueta para producción en /build
 
 ---
 
-## Próximos pasos sugeridos
 
-- Añadir persistencia de objetivos/simulaciones en un backend ligero.  
-- Integrar sensores físicos (GPS, cámaras, meteorología) para enriquecer cada pase.  
-- Exportar efemérides en formatos compatibles con herramientas satelitales externas.
-
----
 
 ## Licencia
 
