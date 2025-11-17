@@ -1,4 +1,4 @@
-// Dependencias principales: React, Leaflet, utilidades matemáticas y estilos.
+// Core dependencies: React hooks, Leaflet primitives, orbital math helpers, and styling.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -13,7 +13,7 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-// Ajustamos el icono por defecto de Leaflet para evitar que falten assets.
+// Replace Leaflet's default marker assets to avoid missing-file warnings in bundlers.
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -21,26 +21,29 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// Constantes de configuración general y parámetros del modelo.
+// Global configuration for telemetry refresh, orbital modeling, and UI timings.
 const ISS_API = 'https://api.wheretheiss.at/v1/satellites/25544';
-const ISS_REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000; // refrescamos telemetria cada 2 h
-const LIVE_UPDATE_INTERVAL_MS = 1000; // simulamos la posicion con el TLE cada segundo
-const HISTORY_SAMPLE_INTERVAL_MS = 10000; // guardamos solo un punto historico cada 10 s
+const ISS_REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000; // refresh live telemetry every ~2 h
+const LIVE_UPDATE_INTERVAL_MS = 1000; // update synthetic position from TLE once per second
+const HISTORY_SAMPLE_INTERVAL_MS = 10000; // keep one history sample every 10 s to tame memory usage
 const ORBIT_MINUTES = 92;
-const ORBITAL_SPEED_KM_S = 7.66; // respaldo simple
+const ORBITAL_SPEED_KM_S = 7.66; // fallback when no instantaneous velocity is available
 const INITIAL_VIEW = [0, 0];
 const PASS_LOOKAHEAD_MINUTES = 1440;
-const PASS_STEP_SECONDS = 30;
-const PASS_THRESHOLD_KM = 75;
+const PASS_COARSE_STEP_SECONDS = 30; // coarse sampling window used to detect a potential pass
+const PASS_REFINE_STEP_SECONDS = 1; // fine-grained step for final timing accuracy
+const PASS_REFINE_WINDOW_SECONDS = 240; // +/- window explored around the coarse pass hit
+const PASS_THRESHOLD_COARSE_KM = 75;
+const PASS_THRESHOLD_DEFAULT_KM = 5;
 const TLE_SOURCES = [
   { url: 'https://celestrak.org/NORAD/elements/stations.txt', format: 'text' },
   { url: 'https://www.celestrak.com/NORAD/elements/stations.txt', format: 'text' },
   { url: 'https://tle.ivanstanojevic.me/api/tle/25544', format: 'json' },
 ];
 const SIM_STEP_SECONDS = 15;
-const SIM_TIME_SCALE = 120; // 1s real = 2min simulados aprox.
+const SIM_TIME_SCALE = 120; // 1 real second represents roughly 2 simulated minutes
 
-// Icono específico para la ISS y el punto objetivo.
+// Shared ISS icon used for the live marker and the selected objective.
 const issIcon = L.icon({
   iconUrl: issIconAsset,
   iconRetinaUrl: issIconAsset,
@@ -48,7 +51,7 @@ const issIcon = L.icon({
   iconAnchor: [21, 21],
 });
 
-// Calcula distancia en km entre dos coordenadas usando Haversine.
+// Computes the great-circle distance in kilometers between two coordinates (Haversine).
 function haversineDistanceKm(origin, target) {
   if (!origin || !target) return null;
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -65,7 +68,7 @@ function haversineDistanceKm(origin, target) {
   return R * c;
 }
 
-// Formato amigable para mostrar distancias (km/Mm).
+// Returns a compact, human-friendly distance string (km or megameters).
 function formatDistance(distanceKm) {
   if (distanceKm == null || !Number.isFinite(distanceKm)) return '--';
   if (distanceKm >= 1000) {
@@ -74,7 +77,7 @@ function formatDistance(distanceKm) {
   return `${distanceKm.toFixed(0)} km`;
 }
 
-// Formatea tiempos estimados en unidades legibles.
+// Formats ETA values choosing seconds/minutes/hours depending on magnitude.
 function formatEta(ms) {
   if (ms == null || !Number.isFinite(ms)) return '--';
   if (ms < 60 * 1000) return `${Math.max(ms / 1000, 1).toFixed(0)} s`;
@@ -83,7 +86,7 @@ function formatEta(ms) {
   return `${(minutes / 60).toFixed(1)} h`;
 }
 
-// Hook Leaflet personalizado para detectar clics en el mapa.
+// Custom Leaflet hook that captures click events and exposes the selected lat/lng.
 function MapClickSetter({ onSelect }) {
   useMapEvents({
     click(event) {
@@ -94,7 +97,7 @@ function MapClickSetter({ onSelect }) {
 }
 
 function App() {
-  // Estados principales de la vista: telemetría, objetivo, simulación y errores.
+  // Primary UI and simulation state: live telemetry, user target, orbital model, and animation controls.
   const [issPosition, setIssPosition] = useState(null);
   const [issHistory, setIssHistory] = useState([]);
   const [targetPoint, setTargetPoint] = useState(null);
@@ -105,15 +108,16 @@ function App() {
   const [isSimPlaying, setIsSimPlaying] = useState(false);
   const [simTimeMs, setSimTimeMs] = useState(null);
   const [simSpeedMultiplier, setSimSpeedMultiplier] = useState(1);
-  const [passThresholdKm, setPassThresholdKm] = useState(PASS_THRESHOLD_KM);
+  const [passThresholdKm, setPassThresholdKm] = useState(PASS_THRESHOLD_DEFAULT_KM);
   const lastHistoryUpdateRef = useRef(0);
 
-  // Poll periodico a la API publica para obtener la telemetria de referencia (cada 2 h).
-  // Descarga y refresca periodicamente los TLE disponibles.
-  // Cada vez que cambia el TLE se recalcula el satrec con satellite.js.
-  // Explora la orbita futura para estimar la proxima pasada sobre el objetivo.
-  // Si hay nueva trayectoria, reiniciamos la reproduccion.
-  // Animacion cuadro a cuadro que avanza el tiempo de simulacion.
+  // Background effects overview:
+  // 1. Periodically poll the public API for ISS reference telemetry (~every 2h).
+  // 2. Refresh TLE sources hourly to keep the orbital solution current.
+  // 3. Recompute the satrec structure every time a new TLE is available.
+  // 4. Project the orbit forward to predict the next pass over the selected target.
+  // 5. Reset the simulation when a new trajectory is generated.
+  // 6. Advance the animation frame-by-frame using requestAnimationFrame.
   useEffect(() => {
     let cancelled = false;
 
@@ -214,11 +218,11 @@ function App() {
     }
   }, [tle]);
 
-  // Distancia actual entre la ISS y el objetivo.
+  // Real-time distance between the ISS ground track and the user-selected target.
   const distanceKm = useMemo(() => haversineDistanceKm(issPosition, targetPoint), [issPosition, targetPoint]);
   const passThresholdMeters = useMemo(() => passThresholdKm * 1000, [passThresholdKm]);
 
-  // Evita saltos de 360° limitando la longitud.
+  // Normalizes longitude within [-180, 180] to avoid map wrap artifacts.
   const normalizeLng = useCallback((lng) => {
     if (!Number.isFinite(lng)) return lng;
     let normalized = lng % 360;
@@ -227,7 +231,7 @@ function App() {
     return normalized;
   }, []);
 
-  // Calcula el punto sub-satelital en tierra para un instante dado.
+  // Computes the sub-satellite point (lat/lng) for a given timestamp based on the current TLE.
   const computeGroundPoint = useCallback((timeMs) => {
     if (!satrec) return null;
     const date = new Date(timeMs);
@@ -241,7 +245,7 @@ function App() {
     };
   }, [satrec]);
 
-  // Estado completo (posicion + velocidad) en un instante dado usando el TLE actual.
+  // Returns both geodetic coordinates and instantaneous velocity derived from the satrec model.
   const computeIssState = useCallback(
     (timeMs) => {
       if (!satrec) return null;
@@ -268,7 +272,7 @@ function App() {
     [satrec, normalizeLng]
   );
 
-  // Genera una posición "en vivo" usando el TLE sin nuevas solicitudes.
+  // Synthesizes a "live" position from the TLE to keep the scene moving between telemetry refreshes.
   useEffect(() => {
     if (!satrec) return undefined;
     let cancelled = false;
@@ -303,18 +307,52 @@ function App() {
     }
     const now = Date.now();
     const end = now + PASS_LOOKAHEAD_MINUTES * 60 * 1000;
+    const coarseStepMs = PASS_COARSE_STEP_SECONDS * 1000;
+    const refineStepMs = PASS_REFINE_STEP_SECONDS * 1000;
+    const refineWindowMs = PASS_REFINE_WINDOW_SECONDS * 1000;
     let best = { distance: Infinity, time: null };
+    let refineWindow = null;
 
-    for (let t = now; t <= end; t += PASS_STEP_SECONDS * 1000) {
-      const groundPoint = computeGroundPoint(t);
-      if (!groundPoint) continue;
+    const evaluatePoint = (timeMs) => {
+      const groundPoint = computeGroundPoint(timeMs);
+      if (!groundPoint) return null;
       const ground = { lat: groundPoint.lat, lng: normalizeLng(groundPoint.lng) };
       const dist = haversineDistanceKm(ground, targetPoint);
       if (dist != null && dist < best.distance) {
-        best = { distance: dist, time: t };
+        best = { distance: dist, time: timeMs };
       }
-      if (dist != null && dist <= passThresholdKm) {
-        setNextPassPrediction({ time: t, distance: dist, thresholdHit: true });
+      return dist;
+    };
+
+    for (let t = now; t <= end; t += coarseStepMs) {
+      const dist = evaluatePoint(t);
+      if (dist != null && dist <= PASS_THRESHOLD_COARSE_KM) {
+        refineWindow = {
+          start: Math.max(now, t - refineWindowMs),
+          end: Math.min(end, t + refineWindowMs),
+        };
+        break;
+      }
+    }
+
+    if (refineWindow) {
+      let bestRefined = { distance: Infinity, time: null };
+      for (let t = refineWindow.start; t <= refineWindow.end; t += refineStepMs) {
+        const dist = evaluatePoint(t);
+        if (dist != null && dist < bestRefined.distance) {
+          bestRefined = { distance: dist, time: t };
+        }
+        if (dist != null && dist <= passThresholdKm) {
+          setNextPassPrediction({ time: t, distance: dist, thresholdHit: true });
+          return;
+        }
+      }
+      if (bestRefined.time) {
+        setNextPassPrediction({
+          time: bestRefined.time,
+          distance: bestRefined.distance,
+          thresholdHit: bestRefined.distance <= passThresholdKm,
+        });
         return;
       }
     }
@@ -326,8 +364,7 @@ function App() {
     }
   }, [satrec, targetPoint, computeGroundPoint, normalizeLng, passThresholdKm]);
 
-  // Construye la ruta simulada entre ahora y la próxima pasada.
-  // Construye la ruta simulada entre ahora y la próxima pasada.
+  // Builds the simulated ground track between "now" and the predicted pass.
   const simulationPath = useMemo(() => {
     if (!satrec || !targetPoint || !nextPassPrediction?.time) return null;
     const now = Date.now();
@@ -364,6 +401,7 @@ function App() {
     return path;
   }, [satrec, targetPoint, nextPassPrediction?.time, computeGroundPoint, normalizeLng, passThresholdKm]);
 
+  // Whenever a new path is generated, start the animation from the first timestamp.
   useEffect(() => {
     if (simulationPath?.length) {
       setIsSimPlaying(false);
@@ -374,6 +412,7 @@ function App() {
     }
   }, [simulationPath]);
 
+  // requestAnimationFrame loop that advances the simulated clock respecting the current speed multiplier.
   useEffect(() => {
     if (!isSimPlaying || !simulationPath?.length) return undefined;
     let frame;
@@ -411,14 +450,14 @@ function App() {
     };
   }, [isSimPlaying, simulationPath, simSpeedMultiplier]);
 
-  // ETA simple suponiendo movimiento uniforme (respaldo).
+  // Fallback ETA assuming constant orbital speed when no precise prediction exists.
   const fallbackEtaMinutes = useMemo(() => {
     if (distanceKm == null) return null;
     const seconds = distanceKm / ORBITAL_SPEED_KM_S;
     return seconds / 60;
   }, [distanceKm]);
 
-  // ETA preferido: usa predicción orbital si está disponible.
+  // Preferred ETA sourced from the refined pass prediction.
   const etaMinutes = useMemo(() => {
     if (nextPassPrediction?.time) {
       return (nextPassPrediction.time - Date.now()) / 60000;
@@ -426,13 +465,13 @@ function App() {
     return fallbackEtaMinutes;
   }, [nextPassPrediction, fallbackEtaMinutes]);
 
-  // Conversión de minutos restantes a órbitas.
+  // Remaining orbits derived from the ETA estimate.
   const orbitsRemaining = useMemo(() => {
     if (etaMinutes == null) return null;
     return etaMinutes / ORBIT_MINUTES;
   }, [etaMinutes]);
 
-  // Fecha/hora legible para mostrar en el HUD.
+  // Human-readable timestamp displayed in the HUD for the next pass.
   const nextPassTime = useMemo(() => {
     if (nextPassPrediction?.time) {
       return dayjs(nextPassPrediction.time).format('DD MMM YYYY HH:mm:ss');
@@ -441,7 +480,7 @@ function App() {
     return dayjs().add(etaMinutes, 'minute').format('DD MMM YYYY HH:mm:ss');
   }, [nextPassPrediction, etaMinutes]);
 
-  // Estima la velocidad actual (modelo o telemetría).
+  // Instantaneous velocity derived from SGP4 (or telemetry as a last resort).
   const speedInfo = useMemo(() => {
     if (issPosition?.velocityKmh) {
       return { kmh: issPosition.velocityKmh, kms: issPosition.velocityKmh / 3600 };
@@ -453,7 +492,7 @@ function App() {
     return null;
   }, [issPosition, computeIssState]);
 
-  // Posición interpolada del marcador durante la simulación.
+  // Interpolated position of the simulated marker between known samples.
   const simulatedPosition = useMemo(() => {
     if (!simulationPath?.length || simTimeMs == null) return null;
     if (simTimeMs <= simulationPath[0].time) return simulationPath[0];
@@ -473,13 +512,13 @@ function App() {
     return simulationPath[simulationPath.length - 1];
   }, [simulationPath, simTimeMs]);
 
-  // Distancia restante dentro de la simulación (HUD derecho).
+  // Remaining distance to the objective based on the simulated track.
   const simDistanceRemaining = useMemo(() => {
     if (!targetPoint || !simulatedPosition) return null;
     return haversineDistanceKm(simulatedPosition, targetPoint);
   }, [targetPoint, simulatedPosition]);
 
-  // Progreso normalizado (para la barra de avance).
+  // Normalized 0-1 progress value used by the simulation progress bar.
   const simProgress = useMemo(() => {
     if (!simulationPath?.length || simTimeMs == null) return 0;
     const total = simulationPath[simulationPath.length - 1].time - simulationPath[0].time;
@@ -487,14 +526,14 @@ function App() {
     return Math.min(1, Math.max(0, (simTimeMs - simulationPath[0].time) / total));
   }, [simulationPath, simTimeMs]);
 
-  // Tiempo faltante en la simulación, en milisegundos.
+  // Remaining simulated time in milliseconds.
   const simEtaMs = useMemo(() => {
     if (!simulationPath?.length || simTimeMs == null) return null;
     const end = simulationPath[simulationPath.length - 1].time;
     return Math.max(end - simTimeMs, 0);
   }, [simulationPath, simTimeMs]);
 
-  // Divide la polilínea para evitar saltos al cruzar el meridiano 180°.
+  // Splits polylines when crossing +/-180° to prevent Leaflet from drawing long wraparound lines.
   const simulationSegments = useMemo(() => {
     if (!simulationPath?.length) return null;
     const segments = [];
@@ -523,7 +562,7 @@ function App() {
     return segments.length ? segments : null;
   }, [simulationPath]);
 
-  // Utiliza la API de geolocalización para fijar el destino.
+  // Requests browser geolocation and uses that point as the active target.
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
       setError('Tu navegador no soporta geolocalización');
@@ -542,30 +581,30 @@ function App() {
     );
   };
 
-  // Indicador de si tenemos una trayectoria válida para controlar.
+  // Indicates if a full simulation path is available for controls to act upon.
   const simulationAvailable = Boolean(simulationPath?.length);
 
-  // Alterna entre reproducir o pausar la simulación.
+  // Toggles the playback state of the simulation.
   const handleSimPlayPause = () => {
     if (!simulationAvailable) return;
     setIsSimPlaying((prev) => !prev);
   };
 
-  // Vuelve al inicio de la trayectoria simulada.
+  // Resets playback to the first simulated timestamp.
   const handleSimReset = () => {
     if (!simulationAvailable) return;
     setIsSimPlaying(false);
     setSimTimeMs(simulationPath[0].time);
   };
 
-  // Cambia la velocidad de reproducción entre 1x y 2x.
+  // Switches between 1x and 2x playback speed multipliers.
   const handleSimSpeedToggle = () => {
     setSimSpeedMultiplier((prev) => (prev === 1 ? 8 : 1));
   };
 
   return (
     <div className="map-page">
-      {/* Bloque principal: mapa 2D con capas y overlays en vivo. */}
+      {/* Main 2D map with live telemetry overlays and interaction handlers. */}
       <MapContainer
         center={issPosition ? [issPosition.lat, issPosition.lng] : INITIAL_VIEW}
         zoom={3}
@@ -609,7 +648,7 @@ function App() {
         )}
         <MapClickSetter onSelect={(coords) => setTargetPoint(coords)} />
       </MapContainer>
-      {/* Visualización 3D complementaria con la misma data. */}
+      {/* Companion 3D visualization built with Three.js for additional context. */}
       <EarthGlobe
         issPosition={issPosition}
         targetPoint={targetPoint}
@@ -618,7 +657,7 @@ function App() {
         isSimPlaying={isSimPlaying}
       />
 
-      {/* HUD superior izquierdo: telemetría básica. */}
+      {/* Upper-left HUD: live telemetry snapshot. */}
       <div className="hud hud--top-left">
         <div>
           <div className="panel-label">Posición ISS</div>
@@ -638,7 +677,7 @@ function App() {
         </div>
       </div>
 
-      {/* HUD superior derecho: selección de objetivo y controles. */}
+      {/* Upper-right HUD: target selection, geolocation, and simulation controls. */}
       <div className="hud hud--top-right">
         <button className="primary" onClick={handleUseMyLocation}>
           Usar mi ubicación
@@ -690,7 +729,7 @@ function App() {
         )}
       </div>
 
-      {/* HUD inferior: resumen de distancias y ETA. */}
+      {/* Lower HUD: consolidated orbital metrics and ETA readouts. */}
       <div className="hud hud--bottom">
         <div>
           <div className="panel-label">Punto objetivo</div>
@@ -728,7 +767,7 @@ function App() {
         </div>
       </div>
 
-      {/* Banner general para mostrar cualquier error de red/modelo. */}
+      {/* Error banner for any networking/modeling failures. */}
       {error && <div className="error-banner">{error}</div>}
     </div>
   );

@@ -6,6 +6,7 @@ const EARTH_RADIUS = 1;
 const ISS_RADIUS = 1.15;
 const TARGET_RADIUS = 1.03;
 
+// Projects a latitude/longitude tuple onto a sphere of the provided radius.
 function latLngToCartesian(lat, lng, radius = EARTH_RADIUS) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return [0, 0, 0];
   const latRad = (lat * Math.PI) / 180;
@@ -16,6 +17,7 @@ function latLngToCartesian(lat, lng, radius = EARTH_RADIUS) {
   return [x, y, z];
 }
 
+// Simple Earth model that slowly rotates to hint at the passage of time.
 function Earth() {
   const earthRef = useRef();
 
@@ -39,6 +41,7 @@ function Earth() {
   );
 }
 
+// Generic glowing sphere used for ISS, targets, and live markers.
 function Marker({ lat, lng, radius, color, size = 0.04 }) {
   const position = useMemo(() => latLngToCartesian(lat, lng, radius), [lat, lng, radius]);
   return (
@@ -49,6 +52,7 @@ function Marker({ lat, lng, radius, color, size = 0.04 }) {
   );
 }
 
+// Flat circular ring highlighting the nominal ISS orbital altitude.
 function OrbitRing() {
   const positions = useMemo(() => {
     const segments = 128;
@@ -70,6 +74,7 @@ function OrbitRing() {
   );
 }
 
+// Converts a set of lat/lng pairs into a 3D polyline representing the simulated track.
 function Trajectory({ path }) {
   const points = useMemo(() => {
     if (!path?.length) return null;
@@ -85,6 +90,7 @@ function Trajectory({ path }) {
   return <Line points={points} color="#a855f7" lineWidth={2} transparent opacity={0.85} />;
 }
 
+// Formats coordinates with sign indicators for quick inspection.
 function formatCoord(value) {
   if (typeof value !== 'number') return '--';
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}°`;
