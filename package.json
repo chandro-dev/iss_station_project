@@ -24,7 +24,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "postinstall": "node scripts/fix-mediapipe-map.js"
+    "postinstall": "if [ \"$NODE_ENV\" != \"production\" ]; then node scripts/fix-mediapipe-map.js; fi"
   },
   "eslintConfig": {
     "extends": [

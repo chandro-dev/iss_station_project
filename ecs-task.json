@@ -1,0 +1,23 @@
+{
+    "family": "iss-task",
+    "executionRoleArn": "arn:aws:iam::084375557754:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "512",
+    "memory": "1024",
+    "containerDefinitions": [
+        {
+            "name": "iss-container",
+            "image": "084375557754.dkr.ecr.us-east-1.amazonaws.com/iss:latest",
+            "essential": true,
+            "portMappings": [
+                {
+                    "containerPort": 80,
+                    "protocol": "tcp"
+                }
+            ]
+        }
+    ]
+}

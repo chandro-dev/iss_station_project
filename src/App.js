@@ -1,4 +1,4 @@
-// Core dependencies: React hooks, Leaflet primitives, orbital math helpers, and styling.
+﻿// Core dependencies: React hooks, Leaflet primitives, orbital math helpers, and styling.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -124,7 +124,7 @@ function App() {
     const fetchIssData = async () => {
       try {
         const response = await fetch(ISS_API);
-        if (!response.ok) throw new Error('No se pudo leer la telemetría de la ISS');
+        if (!response.ok) throw new Error('No se pudo leer la telemetrÃ­a de la ISS');
         const data = await response.json();
         if (cancelled) return;
         const position = {
@@ -533,7 +533,7 @@ function App() {
     return Math.max(end - simTimeMs, 0);
   }, [simulationPath, simTimeMs]);
 
-  // Splits polylines when crossing +/-180° to prevent Leaflet from drawing long wraparound lines.
+  // Splits polylines when crossing +/-180Â° to prevent Leaflet from drawing long wraparound lines.
   const simulationSegments = useMemo(() => {
     if (!simulationPath?.length) return null;
     const segments = [];
@@ -565,7 +565,7 @@ function App() {
   // Requests browser geolocation and uses that point as the active target.
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
-      setError('Tu navegador no soporta geolocalización');
+      setError('Tu navegador no soporta geolocalizaciÃ³n');
       return;
     }
 
@@ -574,9 +574,9 @@ function App() {
         setTargetPoint({
           lat: coords.latitude,
           lng: coords.longitude,
-          label: 'Tu ubicación',
+          label: 'Tu ubicaciÃ³n',
         }),
-      () => setError('No pudimos obtener tu ubicación'),
+      () => setError('No pudimos obtener tu ubicaciÃ³n'),
       { enableHighAccuracy: true, timeout: 5000 }
     );
   };
@@ -604,144 +604,145 @@ function App() {
 
   return (
     <div className="map-page">
-      {/* Main 2D map with live telemetry overlays and interaction handlers. */}
-      <MapContainer
-        center={issPosition ? [issPosition.lat, issPosition.lng] : INITIAL_VIEW}
-        zoom={3}
-        scrollWheelZoom
-        className="map-full"
-      >
-        <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {issPosition && (
-          <Marker position={[issPosition.lat, issPosition.lng]} icon={issIcon}>
-            <span className="marker-label">ISS</span>
-          </Marker>
-        )}
-        {targetPoint && (
-          <>
-            <Marker position={[targetPoint.lat, targetPoint.lng]} icon={issIcon}>
-              <span className="marker-label">Objetivo</span>
-            </Marker>
-            <Circle center={[targetPoint.lat, targetPoint.lng]} radius={passThresholdMeters} pathOptions={{ color: '#fb923c', weight: 1 }} />
-          </>
-        )}
-        {issHistory.length > 1 && (
-          <Polyline
-            positions={issHistory.map((point) => [point.lat, point.lng])}
-            pathOptions={{ color: '#22d3ee', weight: 2, opacity: 0.7 }}
+      <div className="map-layout">
+        <section className="map-layout__map" aria-label="Mapa orbital">
+          <MapContainer
+            center={issPosition ? [issPosition.lat, issPosition.lng] : INITIAL_VIEW}
+            zoom={3}
+            scrollWheelZoom
+            className="map-full"
+          >
+            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            {issPosition && (
+              <Marker position={[issPosition.lat, issPosition.lng]} icon={issIcon}>
+                <span className="marker-label">ISS</span>
+              </Marker>
+            )}
+            {targetPoint && (
+              <>
+                <Marker position={[targetPoint.lat, targetPoint.lng]} icon={issIcon}>
+                  <span className="marker-label">Objetivo</span>
+                </Marker>
+                <Circle center={[targetPoint.lat, targetPoint.lng]} radius={passThresholdMeters} pathOptions={{ color: '#fb923c', weight: 1 }} />
+              </>
+            )}
+            {issHistory.length > 1 && (
+              <Polyline
+                positions={issHistory.map((point) => [point.lat, point.lng])}
+                pathOptions={{ color: '#22d3ee', weight: 2, opacity: 0.7 }}
+              />
+            )}
+            {simulationSegments &&
+              simulationSegments.map((segment, index) => (
+                <Polyline
+                  key={`sim-segment-${index}`}
+                  positions={segment}
+                  pathOptions={{ color: '#a855f7', weight: 2, opacity: 0.75, dashArray: '8 6' }}
+                />
+              ))}
+            {simulatedPosition && (
+              <Circle
+                center={[simulatedPosition.lat, simulatedPosition.lng]}
+                radius={200000}
+                pathOptions={{ color: '#a855f7', fillColor: '#a855f7', fillOpacity: 0.15, weight: 1 }}
+              />
+            )}
+            <MapClickSetter onSelect={(coords) => setTargetPoint(coords)} />
+          </MapContainer>
+        </section>
+        <aside className="map-layout__aside">
+          <EarthGlobe
+            issPosition={issPosition}
+            targetPoint={targetPoint}
+            simulationPath={simulationPath}
+            simulatedPosition={simulatedPosition}
+            isSimPlaying={isSimPlaying}
           />
-        )}
-        {simulationSegments &&
-          simulationSegments.map((segment, index) => (
-            <Polyline
-              key={`sim-segment-${index}`}
-              positions={segment}
-              pathOptions={{ color: '#a855f7', weight: 2, opacity: 0.75, dashArray: '8 6' }}
+
+          <div className="hud-card hud-card--telemetry">
+            <div>
+              <div className="panel-label">Posición ISS</div>
+              <div className="panel-value">
+                {issPosition ? `${issPosition.lat.toFixed(2)}°, ${issPosition.lng.toFixed(2)}°` : 'Cargando'}
+              </div>
+            </div>
+            <div>
+              <div className="panel-label">Última actualización</div>
+              <div className="panel-value">{issPosition ? dayjs(issPosition.timestamp).format('HH:mm:ss') : '--:--:--'}</div>
+            </div>
+            <div>
+              <div className="panel-label">Velocidad</div>
+              <div className="panel-value">
+                {speedInfo ? `${speedInfo.kmh.toFixed(0)} km/h (${speedInfo.kms.toFixed(2)} km/s)` : '--'}
+              </div>
+            </div>
+          </div>
+
+          <div className="hud-card hud-card--controls">
+            <button className="primary" onClick={handleUseMyLocation}>
+              Usar mi ubicación
+            </button>
+            <button className="secondary" onClick={() => setTargetPoint(null)}>
+              Limpiar objetivo
+            </button>
+            <label className="panel-label" htmlFor="precision-slider">
+              Precisión objetivo ({passThresholdKm.toFixed(0)} km)
+            </label>
+            <input
+              id="precision-slider"
+              type="range"
+              min="25"
+              max="500"
+              step="5"
+              value={passThresholdKm}
+              onChange={(event) => setPassThresholdKm(Number(event.target.value))}
             />
-          ))}
-        {simulatedPosition && (
-          <Circle
-            center={[simulatedPosition.lat, simulatedPosition.lng]}
-            radius={200000}
-            pathOptions={{ color: '#a855f7', fillColor: '#a855f7', fillOpacity: 0.15, weight: 1 }}
-          />
-        )}
-        <MapClickSetter onSelect={(coords) => setTargetPoint(coords)} />
-      </MapContainer>
-      {/* Companion 3D visualization built with Three.js for additional context. */}
-      <EarthGlobe
-        issPosition={issPosition}
-        targetPoint={targetPoint}
-        simulationPath={simulationPath}
-        simulatedPosition={simulatedPosition}
-        isSimPlaying={isSimPlaying}
-      />
-
-      {/* Upper-left HUD: live telemetry snapshot. */}
-      <div className="hud hud--top-left">
-        <div>
-          <div className="panel-label">Posición ISS</div>
-          <div className="panel-value">
-            {issPosition ? `${issPosition.lat.toFixed(2)}°, ${issPosition.lng.toFixed(2)}°` : 'Cargando'}
+            <div className="panel-helper">También puedes hacer clic en el mapa para definir el punto.</div>
+            {targetPoint && !simulationAvailable && (
+              <div className="panel-helper">Calculando trayectoria orbital...</div>
+            )}
+            {simulationAvailable && (
+              <div className="sim-panel-inline">
+                <div className="panel-label">Simulación al objetivo</div>
+                <div className="sim-panel__metrics">
+                  <span>{formatDistance(simDistanceRemaining)}</span>
+                  <span>{formatEta(simEtaMs)}</span>
+                </div>
+                <div className="sim-progress">
+                  <div className="sim-progress__bar" style={{ width: `${(simProgress * 100).toFixed(1)}%` }} />
+                </div>
+                <div className="sim-controls">
+                  <button className="tertiary" onClick={handleSimPlayPause}>
+                    {isSimPlaying ? 'Pausar' : 'Play'}
+                  </button>
+                  <button className="tertiary" onClick={handleSimReset} disabled={simProgress === 0 && !isSimPlaying}>
+                    Reiniciar
+                  </button>
+                  <button className="tertiary" onClick={handleSimSpeedToggle}>
+                    {simSpeedMultiplier === 1 ? 'x1' : 'x2'}
+                  </button>
+                </div>
+                <div className="panel-helper">
+                  {isSimPlaying ? 'Reproduciendo' : 'Pausado'} • ETA sim {formatEta(simEtaMs)}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-        <div>
-          <div className="panel-label">Última actualización</div>
-          <div className="panel-value">{issPosition ? dayjs(issPosition.timestamp).format('HH:mm:ss') : '--:--:--'}</div>
-        </div>
-        <div>
-          <div className="panel-label">Velocidad</div>
-          <div className="panel-value">
-            {speedInfo ? `${speedInfo.kmh.toFixed(0)} km/h (${speedInfo.kms.toFixed(2)} km/s)` : '--'}
-          </div>
-        </div>
+        </aside>
       </div>
 
-      {/* Upper-right HUD: target selection, geolocation, and simulation controls. */}
-      <div className="hud hud--top-right">
-        <button className="primary" onClick={handleUseMyLocation}>
-          Usar mi ubicación
-        </button>
-        <button className="secondary" onClick={() => setTargetPoint(null)}>
-          Limpiar objetivo
-        </button>
-        <label className="panel-label" htmlFor="precision-slider">
-          Precisión objetivo ({passThresholdKm.toFixed(0)} km)
-        </label>
-        <input
-          id="precision-slider"
-          type="range"
-          min="25"
-          max="500"
-          step="5"
-          value={passThresholdKm}
-          onChange={(event) => setPassThresholdKm(Number(event.target.value))}
-        />
-        <div className="panel-helper">También puedes hacer clic en el mapa para definir el punto.</div>
-        {targetPoint && !simulationAvailable && (
-          <div className="panel-helper">Calculando trayectoria orbital...</div>
-        )}
-        {simulationAvailable && (
-          <div className="sim-panel-inline">
-            <div className="panel-label">Simulación al objetivo</div>
-            <div className="sim-panel__metrics">
-              <span>{formatDistance(simDistanceRemaining)}</span>
-              <span>{formatEta(simEtaMs)}</span>
-            </div>
-            <div className="sim-progress">
-              <div className="sim-progress__bar" style={{ width: `${(simProgress * 100).toFixed(1)}%` }} />
-            </div>
-            <div className="sim-controls">
-              <button className="tertiary" onClick={handleSimPlayPause}>
-                {isSimPlaying ? 'Pausar' : 'Play'}
-              </button>
-              <button className="tertiary" onClick={handleSimReset} disabled={simProgress === 0 && !isSimPlaying}>
-                Reiniciar
-              </button>
-              <button className="tertiary" onClick={handleSimSpeedToggle}>
-                {simSpeedMultiplier === 1 ? 'x1' : 'x2'}
-              </button>
-            </div>
-            <div className="panel-helper">
-              {isSimPlaying ? 'Reproduciendo' : 'Pausado'} · ETA sim {formatEta(simEtaMs)}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Lower HUD: consolidated orbital metrics and ETA readouts. */}
       <div className="hud hud--bottom">
-        <div>
+        <div className="hud-section">
           <div className="panel-label">Punto objetivo</div>
           <div className="panel-value">
             {targetPoint ? `${targetPoint.lat.toFixed(2)}°, ${targetPoint.lng.toFixed(2)}°` : 'Sin objetivo'}
           </div>
         </div>
-        <div>
-          <div className="panel-label">Distancia ISS → Punto</div>
+        <div className="hud-section">
+          <div className="panel-label">Distancia ISS ↔ Punto</div>
           <div className="panel-value">{formatDistance(distanceKm)}</div>
         </div>
-        <div>
+        <div className="hud-section">
           <div className="panel-label">Próximo paso estimado</div>
           <div className="panel-value">{nextPassTime || '--'}</div>
           {nextPassPrediction && !nextPassPrediction.thresholdHit && (
@@ -750,14 +751,14 @@ function App() {
             </div>
           )}
         </div>
-        <div>
+        <div className="hud-section">
           <div className="panel-label">Órbitas restantes</div>
           <div className="panel-value">
             {orbitsRemaining == null ? '--' : orbitsRemaining < 1 ? orbitsRemaining.toFixed(2) : orbitsRemaining.toFixed(1)}
           </div>
           <div className="panel-helper">Período orbital medio: {ORBIT_MINUTES} min</div>
         </div>
-        <div className="eta-pill">
+        <div className="hud-section eta-pill">
           <div className="panel-label">ETA aprox.</div>
           <div className="panel-value">
             {etaMinutes == null ? '--' : `${etaMinutes < 120 ? etaMinutes.toFixed(1) : (etaMinutes / 60).toFixed(1)} ${
@@ -767,10 +768,10 @@ function App() {
         </div>
       </div>
 
-      {/* Error banner for any networking/modeling failures. */}
       {error && <div className="error-banner">{error}</div>}
     </div>
   );
 }
 
 export default App;
+
