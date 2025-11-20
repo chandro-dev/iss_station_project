@@ -1,6 +1,6 @@
 ﻿// Core dependencies: React hooks, Leaflet primitives, orbital math helpers, and styling.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Circle, Polyline, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Circle, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import dayjs from 'dayjs';
 import * as satellite from 'satellite.js';
@@ -93,6 +93,22 @@ function MapClickSetter({ onSelect }) {
       onSelect({ lat: event.latlng.lat, lng: event.latlng.lng, label: 'Punto elegido en el mapa' });
     },
   });
+  return null;
+}
+
+function MapAutoResize() {
+  const map = useMap();
+
+  useEffect(() => {
+    const handleResize = () => {
+      map.invalidateSize();
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [map]);
+
   return null;
 }
 
@@ -604,15 +620,37 @@ function App() {
 
   return (
     <div className="map-page">
+      <header className="page-hero">
+        <div>
+          <p className="hero-kicker">Seguimiento orbital avanzado</p>
+          <h1>Estación Espacial Internacional</h1>
+          <p className="hero-subtitle">
+            Monitoriza la trayectoria en tiempo real, obtén predicciones precisas y mantén tu objetivo siempre a la vista.
+          </p>
+        </div>
+        <p className="hero-byline">
+          Sitio desarrollado por <span>Luis Carretero</span>
+        </p>
+      </header>
+
       <div className="map-layout">
-        <section className="map-layout__map" aria-label="Mapa orbital">
+        <section className="map-layout__map map-panel map-panel--map" aria-label="Mapa orbital">
           <MapContainer
             center={issPosition ? [issPosition.lat, issPosition.lng] : INITIAL_VIEW}
             zoom={3}
             scrollWheelZoom
             className="map-full"
+            style={{ width: '100%', height: '100%' }}
+            maxZoom={6}
+            minZoom={2}
+            worldCopyJump={false}
           >
-            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              noWrap
+            />
+            <MapAutoResize />
             {issPosition && (
               <Marker position={[issPosition.lat, issPosition.lng]} icon={issIcon}>
                 <span className="marker-label">ISS</span>
@@ -650,7 +688,7 @@ function App() {
             <MapClickSetter onSelect={(coords) => setTargetPoint(coords)} />
           </MapContainer>
         </section>
-        <aside className="map-layout__aside">
+        <aside className="map-layout__aside" aria-label="Panel de control y métricas">
           <EarthGlobe
             issPosition={issPosition}
             targetPoint={targetPoint}
@@ -659,7 +697,7 @@ function App() {
             isSimPlaying={isSimPlaying}
           />
 
-          <div className="hud-card hud-card--telemetry">
+          <div className="hud-card hud-card--telemetry map-panel map-panel--telemetry">
             <div>
               <div className="panel-label">Posición ISS</div>
               <div className="panel-value">
@@ -678,7 +716,7 @@ function App() {
             </div>
           </div>
 
-          <div className="hud-card hud-card--controls">
+          <div className="hud-card hud-card--controls map-panel map-panel--controls">
             <button className="primary" onClick={handleUseMyLocation}>
               Usar mi ubicación
             </button>
@@ -767,6 +805,22 @@ function App() {
           </div>
         </div>
       </div>
+
+      <section className="iss-info">
+        <div>
+          <h2>Sobre la Estación Espacial Internacional</h2>
+          <p>
+            La ISS orbita la Tierra a ~420 km de altura y completa una vuelta cada 92 minutos, viajando a 7.66 km/s. Es un laboratorio
+            habitado permanentemente donde colaboran agencias como NASA, ESA, JAXA, Roscosmos y CSA para investigar microgravedad,
+            observación terrestre e innovación tecnológica.
+          </p>
+        </div>
+        <ul>
+          <li><strong>Tripulación:</strong> 7 astronautas</li>
+          <li><strong>Órbitas/día:</strong> ~15.5</li>
+          <li><strong>Velocidad:</strong> 27,500 km/h</li>
+        </ul>
+      </section>
 
       {error && <div className="error-banner">{error}</div>}
     </div>
